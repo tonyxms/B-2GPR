@@ -20,9 +20,9 @@ init_eps_HMC.R: Choose the initial step size for Algorithm 1 (Hamiltonian Monte 
 
 init_eps.R: Choose the initial step size for Algorithm 2 (Spherical Hamiltonian Monte Carlo).
 
-leapfrog_HMC.R: Implement the leapfrog integrator (for-loop part) used in Algorithm 1 (Hamiltonian Monte Carlo).
+leapfrog_HMC.R: Implement the leapfrog integration (for-loop part) used in Algorithm 1 (Hamiltonian Monte Carlo).
 
-leapfrog.R: Implement the leapfrog integrator (for-loop part) used in Algorithm 2 (Spherical Hamiltonian Monte Carlo).
+leapfrog.R: Implement the leapfrog integration (for-loop part) used in Algorithm 2 (Spherical Hamiltonian Monte Carlo).
 
 metropolis.R: Implement the Metropolis-Hastings algorithm.
 
@@ -33,3 +33,4 @@ predict_c.R: Use an alternative trained Bayesian bridge model to generate predic
 second_order.R: Construct the second-order polynomial basis.
 
 ###
+
