@@ -1,0 +1,496 @@
+```{r}
+#Example for the Borehole function with original input dimension d = 8, training set size n = 200, and test set size m = 1000.
+```
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(matrixStats)
+library(viridis)
+library(data.table)
+```
+
+```{r}
+rm(list = ls())
+source("plot_coefficients.R")      # helper for fancy boxplots
+```
+
+1.Load data
+```{r}
+result_borehole <- read.csv(
+  "../R2_cluster_u4/result/borehole_200/test_borehole_200.csv",
+  header = TRUE, check.names = FALSE
+)
+
+result_borehole_parameter_0.8 <- read.csv(
+  "../R2_cluster_u4/result/borehole_200/test_borehole_0.8_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_borehole_parameter_1 <- read.csv(
+  "../R2_cluster_u4/result/borehole_200/test_borehole_1_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_borehole_parameter_2 <- read.csv(
+  "../R2_cluster_u4/result/borehole_200/test_borehole_2_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_borehole_parameter_hmc <- read.csv(
+  "../R2_cluster_u4/result/borehole_200/test_borehole_hmc_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+```
+
+```{r}
+result_borehole <- head(result_borehole, 100)
+result_borehole_parameter_0.8 <- head(result_borehole_parameter_0.8, 100)
+result_borehole_parameter_1   <- head(result_borehole_parameter_1, 100)
+result_borehole_parameter_2   <- head(result_borehole_parameter_2, 100)
+result_borehole_parameter_hmc <- head(result_borehole_parameter_hmc, 100)
+```
+
+```{r}
+task_id=result_borehole$task_id
+```
+
+2.Standardized RMSE boxplot
+```{r}
+rmse_mlegp=result_borehole$rmse_mlegp
+rmse_lagp=result_borehole$rmse_lagp
+rmse_sphmc_0.8=result_borehole$rmse_sphmc_0.8
+rmse_sphmc_1=result_borehole$rmse_sphmc_1
+rmse_sphmc_2=result_borehole$rmse_sphmc_2
+rmse_hmc=result_borehole$rmse_hmc
+rmse_kriging_constant <- result_borehole$rmse_kringing_constant
+rmse_kriging_linear   <- result_borehole$rmse_kringing_linear
+rmse_kriging_quadratic <- result_borehole$rmse_kringing_quadratic
+```
+
+```{r}
+rmse_mlegp_mean=mean(rmse_mlegp)
+rmse_lagp_mean=mean(rmse_lagp)
+rmse_sphmc_0.8_mean=mean(rmse_sphmc_0.8)
+rmse_sphmc_1_mean=mean(rmse_sphmc_1)
+rmse_sphmc_2_mean=mean(rmse_sphmc_2)
+rmse_hmc_mean=mean(rmse_hmc)
+rmse_kriging_constant_mean=mean(rmse_kriging_constant)
+rmse_kriging_linear_mean=mean(rmse_kriging_linear)
+rmse_kriging_quadratic_mean=mean(rmse_kriging_quadratic)
+rmse_mlegp_sd=sd(rmse_mlegp)
+rmse_lagp_sd=sd(rmse_lagp)
+rmse_sphmc_0.8_sd=sd(rmse_sphmc_0.8)
+rmse_sphmc_1_sd=sd(rmse_sphmc_1)
+rmse_sphmc_2_sd=sd(rmse_sphmc_2)
+rmse_hmc_sd=sd(rmse_hmc)
+rmse_kriging_constant_sd=sd(rmse_kriging_constant)
+rmse_kriging_linear_sd=sd(rmse_kriging_linear)
+rmse_kriging_quadratic_sd=sd(rmse_kriging_quadratic)
+```
+
+
+```{r}
+rmse_mlegp_mean
+rmse_lagp_mean
+rmse_sphmc_0.8_mean
+rmse_sphmc_1_mean
+rmse_sphmc_2_mean
+rmse_hmc_mean
+rmse_kriging_constant_mean
+rmse_kriging_linear_mean
+rmse_kriging_quadratic_mean
+```
+
+```{r}
+rmse_mlegp_sd
+rmse_lagp_sd
+rmse_sphmc_0.8_sd
+rmse_sphmc_1_sd
+rmse_sphmc_2_sd
+rmse_hmc_sd
+rmse_kriging_constant_sd
+rmse_kriging_linear_sd
+rmse_kriging_quadratic_sd
+```
+
+```{r}
+rmse_box <- data.frame(
+  rmse   = c(rmse_mlegp, rmse_lagp, rmse_kriging_constant, rmse_kriging_linear, rmse_kriging_quadratic, rmse_sphmc_0.8,
+             rmse_sphmc_1, rmse_sphmc_2, rmse_hmc),
+  method = factor(c(rep("mlegp",      length(rmse_mlegp)),
+                    rep("lagp",       length(rmse_lagp)),
+                    rep("krig_const", length(rmse_kriging_constant)),
+                    rep("krig_linear",   length(rmse_kriging_linear)),
+                    rep("krig_quad",   length(rmse_kriging_quadratic)),
+                    rep("sphmc_0.8", length(rmse_sphmc_0.8)),
+                    rep("sphmc_1",   length(rmse_sphmc_1)),
+                    rep("sphmc_2",   length(rmse_sphmc_2)),
+                    rep("hmc",        length(rmse_hmc))),
+                 levels = c("mlegp", "lagp",  "krig_const", "krig_linear", "krig_quad","hmc",
+                           "sphmc_0.8", "sphmc_1", "sphmc_2"))
+)
+```
+
+```{r,fig.width=10}
+p_rmse <- ggplot(rmse_box, aes(method, rmse)) +
+  geom_boxplot(fill = "slateblue", alpha = 0.2) +
+  labs(x = "Method", y = "Standardised RMSE",
+       title = "Standardised RMSE (Borehole)") +
+  theme(axis.title = element_text(size = 14),
+        axis.text  = element_text(size = 12))
+print(p_rmse)
+```
+
+```{r}
+# ggsave("borehole_200/rmse_borehole_boxplot_200.png", p_rmse, width = 10, height = 5, dpi=300,units='in')
+```
+
+3.Utilities
+```{r}
+ci_nonzero <- function(record_dir, prefix, n_param, n_adpt_frac = 0.8,
+                       n_iter = 100) {
+  nout  <- 2000
+  nadpt <- nout * n_adpt_frac
+  cnt   <- numeric(n_param)
+  for (i in 1:n_iter) {
+    f <- sprintf("%s_%d.csv", file.path(record_dir, prefix), i)
+    mat <- read.csv(f, header = FALSE, check.names = FALSE)
+    post <- mat[, (nadpt + 4):ncol(mat)]
+    qmat <- rowQuantiles(as.matrix(post), probs = c(0.025, 0.975))
+    cnt  <- cnt + as.numeric(qmat[, 1] * qmat[, 2] > 0)
+  }
+  cnt
+}
+
+low_cols   <- 3:11   # 9 low‑order β (8 dims + intercept)
+high_cols  <- 12:47  # 36 high‑order β
+omega_cols <- 48:55  # 8 ω
+n_beta     <- 45
+n_omega    <- 8
+```
+
+```{r}
+ci_nonzero_parallel <- function(record_dir, prefix, n_param, task_id,
+                                n_adpt_frac = 0.8, n_iter = 100,
+                                q_probs = c(0.025, 0.975),
+                                n_cores = max(1, parallel::detectCores() - 1))
+{
+  nout  <- 2000
+  nadpt <- nout * n_adpt_frac
+  
+  library(foreach); library(doParallel); library(matrixStats)
+  cl <- parallel::makeCluster(n_cores)
+  doParallel::registerDoParallel(cl)
+  
+  cnt <- foreach(
+    i            = 1:n_iter,
+    .combine     = "+",          
+    .init        = numeric(n_param),
+    .multicombine = FALSE,        
+    .packages    = "matrixStats" 
+  ) %dopar% {
+    
+    idx=task_id[i]
+    f   <- sprintf("%s_%d.csv", file.path(record_dir, prefix), idx)
+    mat <- read.csv(f, header = FALSE, check.names = FALSE)
+    post <- data.matrix(mat[, (nadpt + 4):ncol(mat), drop = FALSE])
+    
+    qmat <- rowQuantiles(post, probs = q_probs) 
+    as.numeric(qmat[, 1] * qmat[, 2] > 0)       
+  }
+  
+  parallel::stopCluster(cl)
+  cnt
+}
+```
+
+4.Set up for q=0.8
+```{r}
+q <- "0.8"
+par_file <- result_borehole_parameter_0.8
+conf_beta_0.8  <- ci_nonzero_parallel("../R2_cluster_u4/result/borehole_200/parameter_0.8/beta",
+                             "test_borehole_0.8_beta_record_200", n_beta, task_id)
+conf_omega_0.8 <- ci_nonzero_parallel("../R2_cluster_u4/result/borehole_200/parameter_0.8/omega",
+                             "test_borehole_0.8_omega_record_200", n_omega, task_id)
+
+beta_low  <- par_file[, low_cols]
+beta_high <- par_file[, high_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+labs_low <- c("Intercept", paste0("X[", 1:8, "]"))
+names(labs_low) <- colnames(beta_low)
+```
+
+```{r}
+p_low_0.8 <- plot_coefficients(
+  beta_low, conf_beta_0.8, 1:9,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.15, 0.85),
+  var_labels = labs_low)
+print(p_low_0.8)
+```
+
+```{r}
+# ggsave(
+#   filename = "borehole_200/borehole_beta_low_0.8_boxplot_200.pdf",
+#   plot     = p_low_0.8,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+p_borehole=8
+
+labs_high <- character(0)
+
+for (i in 1:p_borehole) {
+  labs_high <- c(labs_high, paste0("X[", i, "]^2"))
+  
+  if (i < p_borehole) {
+    labs_high <- c(
+      labs_high,
+      paste0("X[", i, "]~X[", (i + 1):p_borehole, "]")  
+    )
+  }
+}
+
+names(labs_high) <- colnames(beta_high)
+```
+
+```{r,fig.width=15}
+p_high_0.8 <- plot_coefficients(
+  beta_high, conf_beta_0.8, 10:45,
+#  title = expression("Boxplot for High-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.15, 0.85),
+  var_labels = labs_high)
+print(p_high_0.8)
+```
+
+```{r}
+# ggsave(
+#   filename = "borehole_200/borehole_beta_high_0.8_boxplot_200.pdf",
+#   plot     = p_high_0.8,
+#   width    = 15,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+labs_omega <- paste0("X[", 1:8, "]")
+names(labs_omega) <- colnames(omega_mat)
+```
+
+```{r}
+p_omega_0.8 <- plot_coefficients(
+  omega_mat, conf_omega_0.8, 1:8,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_prob = c(0.15, 0.85),
+  param_type = "omega",
+  var_labels = labs_omega)
+print(p_omega_0.8)
+```
+
+```{r}
+# ggsave(
+#   "borehole_200/borehole_omega_0.8_boxplot_200.pdf",
+#   plot   = p_omega_0.8,
+#   width  = 8,
+#   height = 5,
+#   dpi    = 300,
+#   units  = "in"
+# )
+```
+
+5.Set up for q=1
+```{r}
+q <- "1"
+par_file <- result_borehole_parameter_1
+conf_beta_1  <- ci_nonzero_parallel("../R2_cluster_u4/result/borehole_200/parameter_1/beta",
+                           "test_borehole_1_beta_record_200", n_beta, task_id)
+conf_omega_1 <- ci_nonzero_parallel("../R2_cluster_u4/result/borehole_200/parameter_1/omega",
+                           "test_borehole_1_omega_record_200", n_omega, task_id)
+
+beta_low  <- par_file[, low_cols]
+beta_high <- par_file[, high_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+# Plot low-order beta
+p_low_1 <- plot_coefficients(
+  beta_low, conf_beta_1, 1:9,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.12, 0.88),
+  var_labels = labs_low)
+print(p_low_1)
+```
+
+```{r}
+# ggsave(
+#   filename = "borehole_200/borehole_beta_low_1_boxplot_200.png",
+#   plot     = p_low_1,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r,fig.width=12}
+# Plot high-order beta
+p_high_1 <- plot_coefficients(
+  beta_high, conf_beta_1, 10:45,
+#  title = expression("Boxplot for High-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.03, 0.97),
+  var_labels = labs_high)
+print(p_high_1)
+```
+
+```{r}
+# ggsave(
+#   filename = "borehole_200/borehole_beta_high_1_boxplot_200.png",
+#   plot     = p_high_1,
+#   width    = 12,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+
+```{r}
+# Plot omega
+p_omega_1 = plot_coefficients(
+  omega_mat, conf_omega_1, 1:8,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_prob = c(0.18, 0.82),
+  param_type = "omega",
+  var_labels = labs_omega)
+print(p_omega_1)
+```
+
+```{r}
+# ggsave(
+#   "borehole_200/borehole_omega_1_boxplot_200.png",
+#   plot   = p_omega_1,
+#   width  = 8,
+#   height = 5,
+#   dpi    = 300,
+#   units  = "in"
+# )
+```
+
+6.Set up for q=2
+```{r}
+q <- "2"
+par_file <- result_borehole_parameter_2
+conf_beta_2  <- ci_nonzero_parallel("../R2_cluster_u4/result/borehole_200/parameter_2/beta",
+                           "test_borehole_2_beta_record_200", n_beta, task_id)
+conf_omega_2 <- ci_nonzero_parallel("../R2_cluster_u4/result/borehole_200/parameter_2/omega",
+                           "test_borehole_2_omega_record_200", n_omega, task_id)
+
+beta_low  <- par_file[, low_cols]
+beta_high <- par_file[, high_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+# Plot low-order beta
+p_low_2 = plot_coefficients(
+  beta_low, conf_beta_2, 1:9,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.04, 0.96),
+  var_labels = labs_low)
+print(p_low_2)
+```
+
+```{r}
+# ggsave(
+#   filename = "borehole_200/borehole_beta_low_2_boxplot_200.png",
+#   plot     = p_low_2,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r,fig.width=12}
+# Plot high-order beta 
+p_high_2 = plot_coefficients(
+  beta_high, conf_beta_2, 10:45,
+#  title = expression("Boxplot for High-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.03, 0.97),
+  var_labels = labs_high)
+print(p_high_2)
+```
+
+```{r}
+# ggsave(
+#   filename = "borehole_200/borehole_beta_high_2_boxplot_200.png",
+#   plot     = p_high_2,
+#   width    = 12,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+# plot omega 
+p_omega_2 = plot_coefficients(
+  omega_mat, conf_omega_2, 1:8,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_prob = c(0.1, 0.91),
+  param_type = "omega",
+  var_labels = labs_omega)
+
+print(p_omega_2)
+```
+
+```{r}
+# ggsave(
+#   "borehole_200/borehole_omega_2_boxplot_200.png",
+#   plot   = p_omega_2,
+#   width  = 8,
+#   height = 5,
+#   dpi    = 300,
+#   units  = "in"
+# )
+```
+
+```{r}
+conf_list <- list(
+  conf_beta_0.8  = conf_beta_0.8,
+  conf_beta_1    = conf_beta_1,
+  conf_beta_2    = conf_beta_2,
+  conf_omega_0.8 = conf_omega_0.8,
+  conf_omega_1   = conf_omega_1,
+  conf_omega_2   = conf_omega_2
+)
+
+conf_df <- conf_list |>
+  tibble::enframe(name = "series", value = "value") |>   
+  unnest_longer(value, indices_include = TRUE) |>        
+  rename(index = value_id, count = value)
+
+print(conf_df, n = 20)
+```
+
+```{r}
+# write.csv(conf_df,
+#           file      = "borehole_200/confidence_counts.csv",
+#           row.names = FALSE)
+```
