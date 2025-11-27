@@ -1,0 +1,438 @@
+```{r}
+#Example for the OTL Circuit function with original input dimension d = 6, training set size n = 200, and test set size m = 1000.
+```
+
+```{r}
+#──────────────────────────────  libraries  ────────────────────────────#
+library(ggplot2)      # visualisation
+library(tidyr)        # pivot_longer / unnest_longer
+library(dplyr)        # pipe‑friendly data munging
+library(matrixStats)  # fast rowQuantiles
+library(viridis)      # colour scales (used by plot_coefficients)
+library(data.table)
+```
+
+```{r}
+#────────────────────  housekeeping & helper import  ───────────────────#
+rm(list = ls())                    # clean start
+source("plot_coefficients.R")      # helper for coloured boxplots
+```
+
+1. Load data
+```{r}
+result_otlcircuit <- read.csv(
+  "../R2_cluster_u4/result/otlcircuit_200/test_otlcircuit_200.csv",
+  header = TRUE, check.names = FALSE
+)
+
+# Posterior‑parameter CSVs for three q values
+result_otlcircuit_parameter_0.8 <- read.csv(
+  "../R2_cluster_u4/result/otlcircuit_200/test_otlcircuit_0.8_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_otlcircuit_parameter_1 <- read.csv(
+  "../R2_cluster_u4/result/otlcircuit_200/test_otlcircuit_1_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_otlcircuit_parameter_2 <- read.csv(
+  "../R2_cluster_u4/result/otlcircuit_200/test_otlcircuit_2_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_otlcircuit_parameter_hmc <- read.csv(
+  "../R2_cluster_u4/result/otlcircuit_200/test_otlcircuit_hmc_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+
+```
+
+```{r}
+result_otlcircuit <- head(result_otlcircuit, 100)
+result_otlcircuit_parameter_0.8 <- head(result_otlcircuit_parameter_0.8, 100)
+result_otlcircuit_parameter_1   <- head(result_otlcircuit_parameter_1, 100)
+result_otlcircuit_parameter_2   <- head(result_otlcircuit_parameter_2, 100)
+result_otlcircuit_parameter_hmc <- head(result_otlcircuit_parameter_hmc, 100)
+```
+
+```{r}
+task_id=result_otlcircuit$task_id
+```
+
+2. Standardized RMSE boxplot
+```{r}
+#‑‑ Pull each RMSE column into its own vector (names unchanged) ──#
+rmse_mlegp      <- result_otlcircuit$rmse_mlegp
+rmse_lagp       <- result_otlcircuit$rmse_lagp
+rmse_sphmc_0.8  <- result_otlcircuit$rmse_sphmc_0.8
+rmse_sphmc_1    <- result_otlcircuit$rmse_sphmc_1
+rmse_sphmc_2    <- result_otlcircuit$rmse_sphmc_2
+rmse_hmc        <- result_otlcircuit$rmse_hmc
+rmse_kriging_constant <- result_otlcircuit$rmse_kringing_constant
+rmse_kriging_linear   <- result_otlcircuit$rmse_kringing_linear
+rmse_kriging_quadratic <- result_otlcircuit$rmse_kringing_quadratic
+```
+
+```{r}
+rmse_mlegp_mean=mean(rmse_mlegp)
+rmse_lagp_mean=mean(rmse_lagp)
+rmse_sphmc_0.8_mean=mean(rmse_sphmc_0.8)
+rmse_sphmc_1_mean=mean(rmse_sphmc_1)
+rmse_sphmc_2_mean=mean(rmse_sphmc_2)
+rmse_hmc_mean=mean(rmse_hmc)
+rmse_kriging_constant_mean=mean(rmse_kriging_constant)
+rmse_kriging_linear_mean=mean(rmse_kriging_linear)
+rmse_kriging_quadratic_mean=mean(rmse_kriging_quadratic)
+rmse_mlegp_sd=sd(rmse_mlegp)
+rmse_lagp_sd=sd(rmse_lagp)
+rmse_sphmc_0.8_sd=sd(rmse_sphmc_0.8)
+rmse_sphmc_1_sd=sd(rmse_sphmc_1)
+rmse_sphmc_2_sd=sd(rmse_sphmc_2)
+rmse_hmc_sd=sd(rmse_hmc)
+rmse_kriging_constant_sd=sd(rmse_kriging_constant)
+rmse_kriging_linear_sd=sd(rmse_kriging_linear)
+rmse_kriging_quadratic_sd=sd(rmse_kriging_quadratic)
+```
+
+
+```{r}
+rmse_mlegp_mean
+rmse_lagp_mean
+rmse_sphmc_0.8_mean
+rmse_sphmc_1_mean
+rmse_sphmc_2_mean
+rmse_hmc_mean
+rmse_kriging_constant_mean
+rmse_kriging_linear_mean
+rmse_kriging_quadratic_mean
+```
+
+```{r}
+rmse_mlegp_sd
+rmse_lagp_sd
+rmse_sphmc_0.8_sd
+rmse_sphmc_1_sd
+rmse_sphmc_2_sd
+rmse_hmc_sd
+rmse_kriging_constant_sd
+rmse_kriging_linear_sd
+rmse_kriging_quadratic_sd
+```
+
+```{r}
+rmse_box <- data.frame(
+  rmse   = c(rmse_mlegp, rmse_lagp, rmse_kriging_constant, rmse_kriging_linear, rmse_kriging_quadratic, rmse_sphmc_0.8,
+             rmse_sphmc_1, rmse_sphmc_2, rmse_hmc),
+  method = factor(c(rep("mlegp",      length(rmse_mlegp)),
+                    rep("lagp",       length(rmse_lagp)),
+                    rep("krig_const", length(rmse_kriging_constant)),
+                    rep("krig_linear",   length(rmse_kriging_linear)),
+                    rep("krig_quad",   length(rmse_kriging_quadratic)),
+                    rep("sphmc_0.8", length(rmse_sphmc_0.8)),
+                    rep("sphmc_1",   length(rmse_sphmc_1)),
+                    rep("sphmc_2",   length(rmse_sphmc_2)),
+                    rep("hmc",        length(rmse_hmc))),
+                 levels = c("mlegp", "lagp", "krig_const", "krig_linear", "krig_quad", "hmc",
+                           "sphmc_0.8", "sphmc_1", "sphmc_2"))
+)
+```
+
+```{r,fig.width=10}
+p_rmse <- ggplot(rmse_box, aes(method, rmse)) +
+  geom_boxplot(fill = "slateblue", alpha = 0.2) +
+  labs(title = "Standardised RMSE (OTLCircuit)",
+       x = "Method", y = "Standardised RMSE") +
+  theme(axis.title = element_text(size = 14),
+        axis.text  = element_text(size = 12))
+print(p_rmse)
+```
+
+
+```{r}
+# ggsave("otlcircuit_200/rmse_otlcircuit_boxplot_200.png", p_rmse,
+#        width = 10, height = 5, dpi = 300, units = "in")
+```
+
+3.Utilities
+```{r}
+#  ci_nonzero(): count how many 95‑% CIs exclude 0 across 100 CSV files
+#  Each CSV has MCMC samples in columns (nadpt+4):end.
+#-----------------------------------------------------------------------#
+ci_nonzero <- function(record_dir, prefix, n_param,
+                       n_iter = 100, frac_adpt = 0.8) {
+  nout  <- 2000                       # total MCMC samples / file
+  nadpt <- nout * frac_adpt           # burn‑in (80 %)
+  cnt   <- numeric(n_param)           # accumulator for each parameter
+  for (i in 1:n_iter) {
+    # Build path like “…/beta/test_otlcircuit_0.8_beta_record_200_17.csv”
+    f <- sprintf("%s_%d.csv", file.path(record_dir, prefix), i)
+    mat  <- read.csv(f, header = FALSE, check.names = FALSE)
+    post <- mat[, (nadpt + 4):ncol(mat)]               # keep posterior draws
+    qmat <- rowQuantiles(as.matrix(post), probs = c(.025, .975))
+    cnt  <- cnt + as.numeric(qmat[, 1] * qmat[, 2] > 0) # same‑sign ⇒ non‑zero
+  }
+  cnt
+}
+
+# Column index constants (for 6‑D OTLCircuit)
+low_cols   <- 3:9     # 7  : intercept + 6 main effects
+high_cols  <- 10:30   # 21 : 6 squared + 15 pairwise
+omega_cols <- 31:36   # 6  : random‑effect ω
+n_beta     <- 28      # 7 + 21
+n_omega    <- 6       # 6 random effects
+```
+
+```{r}
+ci_nonzero_parallel <- function(record_dir, prefix, n_param, task_id,
+                                n_adpt_frac = 0.8, n_iter = 100,
+                                q_probs = c(0.025, 0.975),
+                                n_cores = max(1, parallel::detectCores() - 1))
+{
+  nout  <- 2000
+  nadpt <- nout * n_adpt_frac
+  
+  library(foreach); library(doParallel); library(matrixStats)
+  cl <- parallel::makeCluster(n_cores)
+  doParallel::registerDoParallel(cl)
+  
+  cnt <- foreach(
+    i            = 1:n_iter,
+    .combine     = "+",          
+    .init        = numeric(n_param),
+    .multicombine = FALSE,        
+    .packages    = "matrixStats" 
+  ) %dopar% {
+    
+    idx=task_id[i]
+    f   <- sprintf("%s_%d.csv", file.path(record_dir, prefix), idx)
+    mat <- read.csv(f, header = FALSE, check.names = FALSE)
+    post <- data.matrix(mat[, (nadpt + 4):ncol(mat), drop = FALSE])
+    
+    qmat <- rowQuantiles(post, probs = q_probs) 
+    as.numeric(qmat[, 1] * qmat[, 2] > 0)       
+  }
+  
+  parallel::stopCluster(cl)
+  cnt
+}
+```
+
+4. q=0.8
+```{r}
+conf_beta_0.8  <- ci_nonzero_parallel("../R2_cluster_u4/result/otlcircuit_200/parameter_0.8/beta",
+                             "test_otlcircuit_0.8_beta_record_200", n_beta, task_id)
+conf_omega_0.8 <- ci_nonzero_parallel("../R2_cluster_u4/result/otlcircuit_200/parameter_0.8/omega",
+                             "test_otlcircuit_0.8_omega_record_200", n_omega, task_id)
+
+beta_low  <- result_otlcircuit_parameter_0.8[, low_cols]
+beta_high <- result_otlcircuit_parameter_0.8[, high_cols]
+omega_mat <- abs(result_otlcircuit_parameter_0.8[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+labs_low <- c("Intercept", paste0("X[", 1:6, "]"))
+names(labs_low) <- colnames(beta_low)
+```
+
+```{r}
+p_low_0.8 <- plot_coefficients(
+  beta_low, conf_beta_0.8, 1:7,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_probs=c(0.12,0.88),
+  var_labels = labs_low
+)
+print(p_low_0.8)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_beta_low_0.8_boxplot_200.pdf", p_low_0.8,
+#       width = 8, height = 5, dpi = 300, units = "in")
+```
+
+```{r}
+p_otl=6
+
+labs_high <- character(0)
+
+for (i in 1:p_otl) {
+  labs_high <- c(labs_high, paste0("X[", i, "]^2"))
+  
+  if (i < p_otl) {
+    labs_high <- c(
+      labs_high,
+      paste0("X[", i, "]~X[", (i + 1):p_otl, "]")  
+    )
+  }
+}
+
+names(labs_high) <- colnames(beta_high)
+```
+
+```{r,fig.width=12}
+p_high_0.8 <- plot_coefficients(beta_high, conf_beta_0.8, 8:28,
+#  title = expression("Boxplot for High-Order Fixed Effect coefficients " * beta),
+  q_probs=c(0.06,0.94),
+  var_labels = labs_high)
+print(p_high_0.8)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_beta_high_0.8_boxplot_200.pdf", p_high_0.8,
+#        width = 12, height = 5, dpi = 300, units = "in")
+```
+
+```{r}
+labs_omega <- paste0("X[", 1:6, "]")
+names(labs_omega) <- colnames(omega_mat)
+```
+
+```{r}
+p_omega_0.8 <- plot_coefficients(omega_mat, conf_omega_0.8, 1:6,
+  ylab  = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  param_type = "omega",
+  var_labels = labs_omega)
+print(p_omega_0.8)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_omega_0.8_boxplot_200.pdf", p_omega_0.8,
+#        width = 8, height = 5, dpi = 300, units = "in")
+```
+
+5. q=1
+```{r}
+conf_beta_1  <- ci_nonzero_parallel(
+  "../R2_cluster_u4/result/otlcircuit_200/parameter_1/beta",
+  "test_otlcircuit_1_beta_record_200", n_beta, task_id)
+conf_omega_1 <- ci_nonzero_parallel(
+  "../R2_cluster_u4/result/otlcircuit_200/parameter_1/omega",
+  "test_otlcircuit_1_omega_record_200", n_omega, task_id)
+
+beta_low  <- result_otlcircuit_parameter_1[, low_cols]
+beta_high <- result_otlcircuit_parameter_1[, high_cols]
+omega_mat <- abs(result_otlcircuit_parameter_1[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+p_low_1 <- plot_coefficients(
+  beta_low, conf_beta_1, 1:7,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_probs=c(0.1,0.9),
+  var_labels = labs_low)
+print(p_low_1)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_beta_low_1_boxplot_200.png", p_low_1,
+#        width = 8, height = 5, dpi = 300, units = "in")
+```
+
+```{r}
+p_high_1 <- plot_coefficients(
+  beta_high, conf_beta_1, 8:28,
+#  title = expression("Boxplot for High-Order Fixed Effect coefficients " * beta),
+  q_probs=c(0.06,0.94),
+  var_labels = labs_high)
+print(p_high_1)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_beta_high_1_boxplot_200.png", p_high_1,
+#        width = 12, height = 5, dpi = 300, units = "in")
+```
+
+```{r}
+p_omega_1 <- plot_coefficients(
+  omega_mat, conf_omega_1, 1:6,
+  ylab  = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  param_type = "omega",
+  var_labels = labs_omega)
+print(p_omega_1)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_omega_1_boxplot_200.png", p_omega_1,
+#        width = 8, height = 5, dpi = 300, units = "in")
+```
+
+6. q=2
+```{r}
+conf_beta_2  <- ci_nonzero_parallel(
+  "../R2_cluster_u4/result/otlcircuit_200/parameter_2/beta",
+  "test_otlcircuit_2_beta_record_200", n_beta, task_id)
+
+conf_omega_2 <- ci_nonzero_parallel(
+  "../R2_cluster_u4/result/otlcircuit_200/parameter_2/omega",
+  "test_otlcircuit_2_omega_record_200", n_omega, task_id)
+
+beta_low  <- result_otlcircuit_parameter_2[, low_cols]
+beta_high <- result_otlcircuit_parameter_2[, high_cols]
+omega_mat <- abs(result_otlcircuit_parameter_2[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+p_low_2 <- plot_coefficients(
+  beta_low, conf_beta_2, 1:7,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_probs=c(0.08,0.92),
+  var_labels = labs_low)
+print(p_low_2)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_beta_low_2_boxplot_200.png", p_low_2,
+#        width = 8, height = 5, dpi = 300, units = "in")
+```
+
+```{r}
+p_high_2 <- plot_coefficients(
+  beta_high, conf_beta_2, 8:28,
+#  title = expression("Boxplot for High-Order Fixed Effect coefficients " * beta),
+  q_probs=c(0.015,0.98),
+  var_labels = labs_high)
+print(p_high_2)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_beta_high_2_boxplot_200.png", p_high_2,
+#        width = 12, height = 5, dpi = 300, units = "in")
+```
+
+```{r}
+p_omega_2 <- plot_coefficients(
+  omega_mat, conf_omega_2, 1:6,
+  ylab  = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_probs=c(0.2,0.8),
+  param_type = "omega",
+  var_labels = labs_omega)
+print(p_omega_2)
+```
+
+```{r}
+# ggsave("otlcircuit_200/otlcircuit_omega_2_boxplot_200.png", p_omega_2,
+#        width = 8, height = 5, dpi = 300, units = "in")
+```
+
+```{r}
+conf_list <- list(
+  conf_beta_0.8  = conf_beta_0.8,  conf_beta_1 = conf_beta_1,  conf_beta_2 = conf_beta_2,
+  conf_omega_0.8 = conf_omega_0.8, conf_omega_1 = conf_omega_1, conf_omega_2 = conf_omega_2
+)
+
+conf_df <- conf_list %>%
+  tibble::enframe(name = "series", value = "value") %>%  # list → 2 cols (series,value)
+  unnest_longer(value, indices_include = TRUE) %>%         # one row per element
+  rename(index = value_id, count = value)                  # clearer col names
+
+print(conf_df, n = 18)  # show first several rows
+```
+
+```{r}
+# write.csv(conf_df,
+#           "otlcircuit_200/confidence_counts.csv",
+#           row.names = FALSE)
+```
