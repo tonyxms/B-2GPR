@@ -3,6 +3,8 @@ Eg_water.R: Case study: H2O potential energy (without PCA).
 
 Eg_water_pca.R: Case study: H2O potential energy (with PCA).
 
+result_water_pca.Rmd: Process the MCMC posterior samples from "Eg_water_pca.R" to obtain standardized RMSE.
+
 chemrev_nuprime-theta-grid_computed.xyz: Contain H2O molecular configurations arranged on a grid, with varying angles and asymmetric stretches. Dataset from the manuscript "Gaussian Process Regression for Materials and Molecules" (submitted to Chemical Reviews).
 
 pswater-ipi.out: Contain energies (including the dipole) computed with the Partridge–Schwenke model by i-PI. Dataset from the manuscript "Gaussian Process Regression for Materials and Molecules" (submitted to Chemical Reviews).

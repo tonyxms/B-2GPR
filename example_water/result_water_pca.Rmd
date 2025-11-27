@@ -1,0 +1,95 @@
+```{r}
+#Case study: H2O potential energy (with PCA).
+```
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(matrixStats)
+library(viridis)
+library(data.table)
+```
+
+```{r}
+#────────────────────  housekeeping & helper import  ───────────────────#
+rm(list = ls())                    # clean start
+source("plot_coefficients.R")      # helper for coloured boxplots
+```
+
+```{r}
+result_water=read.csv("../R2_cluster_u4/example_water/result/water_pca/test_water_pca.csv",header=TRUE,check.name=FALSE)
+```
+
+```{r}
+rmse_mlegp=result_water$rmse_mlegp
+rmse_lagp=result_water$rmse_lagp
+rmse_kriging_constant=result_water$rmse_kriging_constant
+rmse_sphmc_0.8=result_water$rmse_sphmc_0.8
+rmse_sphmc_1=result_water$rmse_sphmc_1
+rmse_sphmc_2=result_water$rmse_sphmc_2
+rmse_hmc=result_water$rmse_hmc
+```
+
+```{r}
+rmse_mlegp_mean=mean(rmse_mlegp)
+rmse_lagp_mean=mean(rmse_lagp)
+rmse_kriging_constant_mean=mean(rmse_kriging_constant)
+rmse_sphmc_0.8_mean=mean(rmse_sphmc_0.8)
+rmse_sphmc_1_mean=mean(rmse_sphmc_1)
+rmse_sphmc_2_mean=mean(rmse_sphmc_2)
+rmse_hmc_mean=mean(rmse_hmc)
+rmse_mlegp_sd=sd(rmse_mlegp)
+rmse_lagp_sd=sd(rmse_lagp)
+rmse_kriging_constant_sd=sd(rmse_kriging_constant)
+rmse_sphmc_0.8_sd=sd(rmse_sphmc_0.8)
+rmse_sphmc_1_sd=sd(rmse_sphmc_1)
+rmse_sphmc_2_sd=sd(rmse_sphmc_2)
+rmse_hmc_sd=sd(rmse_hmc)
+```
+
+```{r}
+rmse_mlegp_mean
+rmse_lagp_mean
+rmse_kriging_constant_mean
+rmse_sphmc_0.8_mean
+rmse_sphmc_1_mean
+rmse_sphmc_2_mean
+rmse_hmc_mean
+```
+
+```{r}
+rmse_mlegp_sd
+rmse_lagp_sd
+rmse_kriging_constant_sd
+rmse_sphmc_0.8_sd
+rmse_sphmc_1_sd
+rmse_sphmc_2_sd
+rmse_hmc_sd
+```
+
+```{r}
+rmse_box <- data.frame(
+  rmse   = c(rmse_mlegp, rmse_lagp,rmse_sphmc_0.8,
+             rmse_sphmc_1, rmse_sphmc_2),
+  method = factor(c(rep("mlegp",      length(rmse_mlegp)),
+                    rep("lagp",       length(rmse_lagp)),
+                    rep("sphmc_0.8", length(rmse_sphmc_0.8)),
+                    rep("sphmc_1",   length(rmse_sphmc_1)),
+                    rep("sphmc_2",   length(rmse_sphmc_2))),
+                 levels = c("mlegp", "lagp","sphmc_0.8", "sphmc_1", "sphmc_2"))
+)
+```
+
+```{r}
+p_rmse <- ggplot(rmse_box, aes(method, rmse)) +
+  geom_boxplot(fill = "slateblue", alpha = 0.2) +
+  labs(x = "Method", y = "Standardised RMSE",
+       title = "Standardised RMSE (simulation2)") +
+  theme(axis.title = element_text(size = 14),
+        axis.text  = element_text(size = 12))
+print(p_rmse)
+```
+
+
+
