@@ -1,0 +1,403 @@
+```{r}
+#Example for the Piston simulation function with increased input dimension d = 20, training set size n = 500, and test set size m = 1000.
+```
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(matrixStats)
+library(viridis)
+library(data.table)
+```
+
+```{r}
+rm(list = ls())
+source("plot_coefficients.R")      # helper for coloured boxplots
+```
+
+1.Load data
+```{r}
+result_piston <- read.csv(
+  "../R2_cluster_u4/result/piston_500_20/test_piston_500_20.csv",
+  header = TRUE, check.names = FALSE
+)
+
+result_piston_parameter_0.8 <- read.csv(
+  "../R2_cluster_u4/result/piston_500_20/test_piston_0.8_parameters_500_20.csv",
+  header = TRUE, check.names = FALSE
+)
+result_piston_parameter_1 <- read.csv(
+  "../R2_cluster_u4/result/piston_500_20/test_piston_1_parameters_500_20.csv",
+  header = TRUE, check.names = FALSE
+)
+result_piston_parameter_2 <- read.csv(
+  "../R2_cluster_u4/result/piston_500_20/test_piston_2_parameters_500_20.csv",
+  header = TRUE, check.names = FALSE
+)
+result_piston_parameter_hmc <- read.csv(
+  "../R2_cluster_u4/result/piston_500_20/test_piston_hmc_parameters_500_20.csv",
+  header = TRUE, check.names = FALSE
+)
+```
+
+```{r}
+result_piston <- head(result_piston, 100)
+result_piston_parameter_0.8 <- head(result_piston_parameter_0.8, 100)
+result_piston_parameter_1   <- head(result_piston_parameter_1, 100)
+result_piston_parameter_2   <- head(result_piston_parameter_2, 100)
+result_piston_parameter_hmc <- head(result_piston_parameter_hmc, 100)
+```
+
+```{r}
+task_id=result_piston$task_id
+```
+
+2.Standardized RMSE boxplot
+```{r}
+rmse_mlegp=result_piston$rmse_mlegp
+rmse_lagp=result_piston$rmse_lagp
+rmse_sphmc_0.8=result_piston$rmse_sphmc_0.8
+rmse_sphmc_1=result_piston$rmse_sphmc_1
+rmse_sphmc_2=result_piston$rmse_sphmc_2
+rmse_hmc=result_piston$rmse_hmc
+rmse_kriging_constant <- result_piston$rmse_kringing_constant
+rmse_kriging_linear   <- result_piston$rmse_kringing_linear
+```
+
+```{r}
+rmse_mlegp_mean=mean(rmse_mlegp)
+rmse_lagp_mean=mean(rmse_lagp)
+rmse_sphmc_0.8_mean=mean(rmse_sphmc_0.8)
+rmse_sphmc_1_mean=mean(rmse_sphmc_1)
+rmse_sphmc_2_mean=mean(rmse_sphmc_2)
+rmse_hmc_mean=mean(rmse_hmc)
+rmse_kriging_constant_mean=mean(rmse_kriging_constant)
+rmse_kriging_linear_mean=mean(rmse_kriging_linear)
+rmse_mlegp_sd=sd(rmse_mlegp)
+rmse_lagp_sd=sd(rmse_lagp)
+rmse_sphmc_0.8_sd=sd(rmse_sphmc_0.8)
+rmse_sphmc_1_sd=sd(rmse_sphmc_1)
+rmse_sphmc_2_sd=sd(rmse_sphmc_2)
+rmse_hmc_sd=sd(rmse_hmc)
+rmse_kriging_constant_sd=sd(rmse_kriging_constant)
+rmse_kriging_linear_sd=sd(rmse_kriging_linear)
+```
+
+
+```{r}
+rmse_mlegp_mean
+rmse_lagp_mean
+rmse_sphmc_0.8_mean
+rmse_sphmc_1_mean
+rmse_sphmc_2_mean
+rmse_hmc_mean
+rmse_kriging_constant_mean
+rmse_kriging_linear_mean
+```
+
+```{r}
+rmse_mlegp_sd
+rmse_lagp_sd
+rmse_sphmc_0.8_sd
+rmse_sphmc_1_sd
+rmse_sphmc_2_sd
+rmse_hmc_sd
+rmse_kriging_constant_sd
+rmse_kriging_linear_sd
+```
+
+```{r}
+rmse_box <- data.frame(
+  rmse   = c(rmse_mlegp, rmse_lagp, rmse_kriging_constant, rmse_kriging_linear, rmse_sphmc_0.8,
+             rmse_sphmc_1, rmse_sphmc_2, rmse_hmc),
+  method = factor(c(rep("mlegp",      length(rmse_mlegp)),
+                    rep("lagp",       length(rmse_lagp)),
+                    rep("krig_const", length(rmse_kriging_constant)),
+                    rep("krig_linear",   length(rmse_kriging_linear)),
+                    rep("sphmc_0.8", length(rmse_sphmc_0.8)),
+                    rep("sphmc_1",   length(rmse_sphmc_1)),
+                    rep("sphmc_2",   length(rmse_sphmc_2)),
+                    rep("hmc",        length(rmse_hmc))),
+                 levels = c("mlegp", "lagp",  "krig_const", "krig_linear", "hmc",
+                           "sphmc_0.8", "sphmc_1", "sphmc_2"))
+)
+```
+
+```{r,fig.width=10}
+p_rmse <- ggplot(rmse_box, aes(method, rmse)) +
+  geom_boxplot(fill = "slateblue", alpha = 0.2) +
+  labs(x = "Method", y = "Standardised RMSE",
+       title = "Standardised RMSE (piston)") +
+  theme(axis.title = element_text(size = 14),
+        axis.text  = element_text(size = 12))
+print(p_rmse)
+```
+
+```{r}
+# ggsave("piston_500_20/rmse_piston_boxplot_500_20.png", p_rmse, width = 10, height = 5, dpi=300,units='in')
+```
+
+3.Utilities
+```{r}
+ci_nonzero <- function(record_dir, prefix, n_param, n_adpt_frac = 0.8,
+                       n_iter = 30) {
+  nout  <- 2000
+  nadpt <- nout * n_adpt_frac
+  cnt   <- numeric(n_param)
+  for (i in 1:n_iter) {
+    f <- sprintf("%s_%d.csv", file.path(record_dir, prefix), i)
+    mat <- read.csv(f, header = FALSE, check.names = FALSE)
+    post <- mat[, (nadpt + 4):ncol(mat)]
+    qmat <- rowQuantiles(as.matrix(post), probs = c(0.025, 0.975))
+    cnt  <- cnt + as.numeric(qmat[, 1] * qmat[, 2] > 0)
+  }
+  cnt
+}
+
+beta_cols  <- 3:23
+omega_cols <- 24:43
+n_beta     <- 21
+n_omega    <- 20
+```
+
+```{r}
+ci_nonzero_parallel <- function(record_dir, prefix, n_param, task_id,
+                                n_adpt_frac = 0.8, n_iter = 100,
+                                q_probs = c(0.025, 0.975),
+                                n_cores = max(1, parallel::detectCores() - 1))
+{
+  nout  <- 2000
+  nadpt <- nout * n_adpt_frac
+  
+  library(foreach); library(doParallel); library(matrixStats)
+  cl <- parallel::makeCluster(n_cores)
+  doParallel::registerDoParallel(cl)
+  
+  cnt <- foreach(
+    i            = 1:n_iter,
+    .combine     = "+",          
+    .init        = numeric(n_param),
+    .multicombine = FALSE,        
+    .packages    = "matrixStats" 
+  ) %dopar% {
+    
+    idx=task_id[i]
+    f   <- sprintf("%s_%d.csv", file.path(record_dir, prefix), idx)
+    mat <- read.csv(f, header = FALSE, check.names = FALSE)
+    post <- data.matrix(mat[, (nadpt + 4):ncol(mat), drop = FALSE])
+    
+    qmat <- rowQuantiles(post, probs = q_probs) 
+    as.numeric(qmat[, 1] * qmat[, 2] > 0)       
+  }
+  
+  parallel::stopCluster(cl)
+  cnt
+}
+```
+
+4.Set up for q=0.8
+```{r}
+q <- "0.8"
+par_file <- result_piston_parameter_0.8
+conf_beta_0.8  <- ci_nonzero_parallel("../R2_cluster_u4/result/piston_500_20/parameter_0.8/beta",
+                             "test_piston_0.8_beta_record_500_20", n_beta, task_id)
+conf_omega_0.8 <- ci_nonzero_parallel("../R2_cluster_u4/result/piston_500_20/parameter_0.8/omega",
+                             "test_piston_0.8_omega_record_500_20", n_omega, task_id)
+
+beta_mat = par_file[, beta_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+labs_beta <- c("Intercept", paste0("X[", 1:20, "]"))
+names(labs_beta) <- colnames(beta_mat)
+```
+
+```{r,fig.width=12}
+p_beta_0.8 <- plot_coefficients(
+  beta_mat, conf_beta_0.8, 1:21,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.12, 0.88),
+  var_labels=labs_beta)
+print(p_beta_0.8)
+```
+
+```{r}
+# ggsave(
+#   filename = "piston_500_20/piston_beta_0.8_boxplot_500_20.pdf",
+#   plot     = p_beta_0.8,
+#   width    = 12,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+labs_omega <- paste0("X[", 1:20, "]")
+names(labs_omega) <- colnames(omega_mat)
+```
+
+```{r}
+p_omega_0.8 <- plot_coefficients(
+  omega_mat, conf_omega_0.8, 1:20,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_prob = c(0.1, 0.9),
+  param_type = "omega",
+  var_labels = labs_omega)
+print(p_omega_0.8)
+```
+
+```{r}
+# ggsave(
+#   "piston_500_20/piston_omega_0.8_boxplot_500_20.pdf",
+#   plot   = p_omega_0.8,
+#   width  = 12,
+#   height = 5,
+#   dpi    = 300,
+#   units  = "in"
+# )
+```
+
+5.Set up for q=1
+```{r}
+q <- "1"
+par_file <- result_piston_parameter_1
+conf_beta_1  <- ci_nonzero_parallel("../R2_cluster_u4/result/piston_500_20/parameter_1/beta",
+                           "test_piston_1_beta_record_500_20", n_beta, task_id)
+conf_omega_1 <- ci_nonzero_parallel("../R2_cluster_u4/result/piston_500_20/parameter_1/omega",
+                           "test_piston_1_omega_record_500_20", n_omega, task_id)
+
+beta_mat = par_file[, beta_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r,fig.width=12}
+p_beta_1 <- plot_coefficients(
+  beta_mat, conf_beta_1, 1:21,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.12, 0.88),
+  var_labels=labs_beta)
+print(p_beta_1)
+```
+
+```{r}
+# ggsave(
+#   filename = "piston_500_20/piston_beta_1_boxplot_500_20.pdf",
+#   plot     = p_beta_1,
+#   width    = 12,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+p_omega_1 <- plot_coefficients(
+  omega_mat, conf_omega_1, 1:20,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_prob = c(0.1, 0.9),
+  param_type = "omega",
+  var_labels = labs_omega)
+print(p_omega_1)
+```
+
+```{r}
+# ggsave(
+#   "piston_500_20/piston_omega_1_boxplot_500_20.pdf",
+#   plot   = p_omega_1,
+#   width  = 12,
+#   height = 5,
+#   dpi    = 300,
+#   units  = "in"
+# )
+```
+
+6.Set up for q=2
+```{r}
+q <- "2"
+par_file <- result_piston_parameter_2
+conf_beta_2  <- ci_nonzero_parallel("../R2_cluster_u4/result/piston_500_20/parameter_2/beta",
+                           "test_piston_2_beta_record_500_20", n_beta, task_id)
+conf_omega_2 <- ci_nonzero_parallel("../R2_cluster_u4/result/piston_500_20/parameter_2/omega",
+                           "test_piston_2_omega_record_500_20", n_omega, task_id)
+
+beta_mat = par_file[, beta_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r,fig.width=12}
+p_beta_2 <- plot_coefficients(
+  beta_mat, conf_beta_2, 1:21,
+#  title = expression("Boxplot for Low-Order Fixed Effect coefficients " * beta),
+  q_prob = c(0.12, 0.88),
+  var_labels=labs_beta)
+print(p_beta_2)
+```
+
+```{r}
+# ggsave(
+#   filename = "piston_500_20/piston_beta_2_boxplot_500_20.pdf",
+#   plot     = p_beta_2,
+#   width    = 12,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+p_omega_2 <- plot_coefficients(
+  omega_mat, conf_omega_2, 1:20,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_prob = c(0.1, 0.9),
+  param_type = "omega",
+  var_labels = labs_omega)
+print(p_omega_2)
+```
+
+```{r}
+# ggsave(
+#   "piston_500_20/piston_omega_2_boxplot_500_20.pdf",
+#   plot   = p_omega_2,
+#   width  = 12,
+#   height = 5,
+#   dpi    = 300,
+#   units  = "in"
+# )
+```
+
+```{r}
+conf_list <- list(
+  conf_beta_0.8  = conf_beta_0.8,
+  conf_beta_1    = conf_beta_1,
+  conf_beta_2    = conf_beta_2,
+  conf_omega_0.8 = conf_omega_0.8,
+  conf_omega_1   = conf_omega_1,
+  conf_omega_2   = conf_omega_2
+)
+
+conf_df <- conf_list |>
+  tibble::enframe(name = "series", value = "value") |>   
+  unnest_longer(value, indices_include = TRUE) |>        
+  rename(index = value_id, count = value)
+
+print(conf_df, n = 20)
+```
+
+```{r}
+# write.csv(conf_df,
+#           file      = "piston_500_20/confidence_counts.csv",
+#           row.names = FALSE)
+```
+
+
+
+
