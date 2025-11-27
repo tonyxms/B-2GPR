@@ -1,0 +1,565 @@
+```{r}
+#Example for a pre-specified Gaussian process with input dimension d = 5, training set size n = 200, and test set size m = 1000.
+```
+
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(matrixStats)
+library(viridis)
+library(data.table)
+```
+
+```{r}
+rm(list = ls())
+source("plot_coefficients.R") 
+source("find_best_interval.R")
+```
+
+1. Load data
+```{r}
+result_simulation2 <- read.csv(
+  "../R2_cluster_u4/result/simulation2_200/test_simulation2_200.csv",
+  header = TRUE, check.names = FALSE
+)
+
+result_simulation2_parameter_0.8 <- read.csv(
+  "../R2_cluster_u4/result/simulation2_200/test_simulation2_0.8_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_simulation2_parameter_1 <- read.csv(
+  "../R2_cluster_u4/result/simulation2_200/test_simulation2_1_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_simulation2_parameter_2 <- read.csv(
+  "../R2_cluster_u4/result/simulation2_200/test_simulation2_2_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+result_simulation2_parameter_hmc <- read.csv(
+  "../R2_cluster_u4/result/simulation2_200/test_simulation2_hmc_parameters_200.csv",
+  header = TRUE, check.names = FALSE
+)
+```
+
+```{r}
+result_simulation2 <- head(result_simulation2, 100)
+result_simulation2_parameter_0.8 <- head(result_simulation2_parameter_0.8, 100)
+result_simulation2_parameter_1   <- head(result_simulation2_parameter_1, 100)
+result_simulation2_parameter_2   <- head(result_simulation2_parameter_2, 100)
+result_simulation2_parameter_hmc <- head(result_simulation2_parameter_hmc, 100)
+```
+
+```{r}
+task_id=result_simulation2$task_id
+true_beta=c(3,-2,2,-4,4,3)
+true_omega=c(1,1.5,2,2.5,3)
+```
+
+2. Standardized RMSE boxplot
+
+```{r}
+rmse_mlegp     <- result_simulation2$rmse_mlegp
+rmse_lagp      <- result_simulation2$rmse_lagp
+rmse_sphmc_0.8 <- result_simulation2$rmse_sphmc_0.8
+rmse_sphmc_1   <- result_simulation2$rmse_sphmc_1
+rmse_sphmc_2   <- result_simulation2$rmse_sphmc_2
+rmse_hmc       <- result_simulation2$rmse_hmc
+rmse_kriging_constant <- result_simulation2$rmse_kringing_constant
+rmse_kriging_linear   <- result_simulation2$rmse_kringing_linear
+```
+
+```{r}
+rmse_mlegp_mean=mean(rmse_mlegp)
+rmse_lagp_mean=mean(rmse_lagp)
+rmse_sphmc_0.8_mean=mean(rmse_sphmc_0.8)
+rmse_sphmc_1_mean=mean(rmse_sphmc_1)
+rmse_sphmc_2_mean=mean(rmse_sphmc_2)
+rmse_hmc_mean=mean(rmse_hmc)
+rmse_kriging_constant_mean=mean(rmse_kriging_constant)
+rmse_kriging_linear_mean=mean(rmse_kriging_linear)
+rmse_mlegp_sd=sd(rmse_mlegp)
+rmse_lagp_sd=sd(rmse_lagp)
+rmse_sphmc_0.8_sd=sd(rmse_sphmc_0.8)
+rmse_sphmc_1_sd=sd(rmse_sphmc_1)
+rmse_sphmc_2_sd=sd(rmse_sphmc_2)
+rmse_hmc_sd=sd(rmse_hmc)
+rmse_kriging_constant_sd=sd(rmse_kriging_constant)
+rmse_kriging_linear_sd=sd(rmse_kriging_linear)
+```
+
+
+```{r}
+rmse_mlegp_mean
+rmse_lagp_mean
+rmse_sphmc_0.8_mean
+rmse_sphmc_1_mean
+rmse_sphmc_2_mean
+rmse_hmc_mean
+rmse_kriging_constant_mean
+rmse_kriging_linear_mean
+```
+
+```{r}
+rmse_mlegp_sd
+rmse_lagp_sd
+rmse_sphmc_0.8_sd
+rmse_sphmc_1_sd
+rmse_sphmc_2_sd
+rmse_hmc_sd
+rmse_kriging_constant_sd
+rmse_kriging_linear_sd
+```
+
+```{r}
+rmse_box <- data.frame(
+  rmse   = c(rmse_mlegp, rmse_lagp,rmse_kriging_constant, rmse_kriging_linear, rmse_sphmc_0.8,
+             rmse_sphmc_1, rmse_sphmc_2, rmse_hmc),
+  method = factor(c(rep("mlegp",      length(rmse_mlegp)),
+                    rep("lagp",       length(rmse_lagp)),
+                    rep("krig_const", length(rmse_kriging_constant)),
+                    rep("krig_linear",   length(rmse_kriging_linear)),
+                    rep("sphmc_0.8", length(rmse_sphmc_0.8)),
+                    rep("sphmc_1",   length(rmse_sphmc_1)),
+                    rep("sphmc_2",   length(rmse_sphmc_2)),
+                    rep("hmc",        length(rmse_hmc))),
+                 levels = c("mlegp", "lagp", "krig_const", "krig_linear", "hmc",
+                           "sphmc_0.8", "sphmc_1", "sphmc_2"))
+)
+```
+
+```{r}
+p_rmse <- ggplot(rmse_box, aes(method, rmse)) +
+  geom_boxplot(fill = "slateblue", alpha = 0.2) +
+  labs(x = "Method", y = "Standardised RMSE",
+       title = "Standardised RMSE (simulation2)") +
+  theme(axis.title = element_text(size = 14),
+        axis.text  = element_text(size = 12))
+print(p_rmse)
+```
+
+```{r}
+# ggsave("simulation2_200/rmse_simulation2_boxplot_200.png", p_rmse,
+#       width = 8, height = 5, dpi = 300, units = "in")
+```
+
+3.Utilities
+```{r}
+ci_nonzero <- function(record_dir, prefix, n_param, n_adpt_frac = 0.8,
+                       n_iter = 100) {
+  nout  <- 2000
+  nadpt <- nout * n_adpt_frac
+  cnt   <- numeric(n_param)
+  for (i in 1:n_iter) {
+    f <- sprintf("%s_%d.csv", file.path(record_dir, prefix), i)
+    mat <- read.csv(f, header = FALSE, check.names = FALSE)
+    post <- mat[, (nadpt + 4):ncol(mat)]
+    qmat <- rowQuantiles(as.matrix(post), probs = c(0.025, 0.975))
+    cnt  <- cnt + as.numeric(qmat[, 1] * qmat[, 2] > 0)
+  }
+  cnt
+}
+
+beta_cols   <- 3:8   # 6 β
+omega_cols <- 9:13  # 5 ω
+n_beta     <- 6
+n_omega    <- 5
+```
+
+```{r}
+ci_nonzero_parallel <- function(record_dir, prefix, n_param, task_id,
+                                n_adpt_frac = 0.8, n_iter = 100,
+                                q_probs = c(0.025, 0.975),
+                                n_cores = max(1, parallel::detectCores() - 1))
+{
+  nout  <- 2000
+  nadpt <- nout * n_adpt_frac
+  
+  library(foreach); library(doParallel); library(matrixStats)
+  cl <- parallel::makeCluster(n_cores)
+  doParallel::registerDoParallel(cl)
+  
+  cnt <- foreach(
+    i            = 1:n_iter,
+    .combine     = "+",          
+    .init        = numeric(n_param),
+    .multicombine = FALSE,        
+    .packages    = "matrixStats" 
+  ) %dopar% {
+    
+    idx=task_id[i]
+    f   <- sprintf("%s_%d.csv", file.path(record_dir, prefix), idx)
+    mat <- read.csv(f, header = FALSE, check.names = FALSE)
+    post <- data.matrix(mat[, (nadpt + 4):ncol(mat), drop = FALSE])
+    
+    qmat <- rowQuantiles(post, probs = q_probs) 
+    as.numeric(qmat[, 1] * qmat[, 2] > 0)       
+  }
+  
+  parallel::stopCluster(cl)
+  cnt
+}
+```
+
+4. q=0.8
+```{r}
+file= "../R2_cluster_u4/result/simulation2_200/parameter_0.8/beta/test_simulation2_0.8_beta_record_200_154.csv"
+nadpt=0.8*2000
+raw_mat   <- as.matrix(fread(file, header = FALSE, data.table = FALSE))
+post_mat  <- raw_mat[ , (nadpt + 4):ncol(raw_mat), drop = FALSE]
+```
+
+```{r}
+storage.mode(post_mat) <- "double"
+
+is.numeric(post_mat)          
+sum_na <- sum(!is.finite(post_mat))
+cat("NAs introduced:", sum_na, "\n")
+```
+
+```{r}
+best_interval <- find_best_interval(
+  post_mat = post_mat,
+  true_beta = true_beta,
+  min_len   = 500,
+  max_len   = Inf,
+  metric    = "RMSE"
+)
+```
+
+```{r}
+post_mat  <- post_mat[ ,best_interval$post_start:best_interval$post_end]
+long_df <- as.data.frame(post_mat) |>
+           mutate(param = paste0("p", row_number())) |>
+           pivot_longer(-param, names_to = "iter", values_to = "value")
+#long_df$value <- as.numeric(long_df$value)
+```
+
+```{r}
+label_vec <- c("Intercept", expression(beta[1]),
+               expression(beta[2]), expression(beta[3]),
+               expression(beta[4]), expression(beta[5]))
+
+long_df$param <- factor(long_df$param,
+                        levels  = paste0("p", 1:6),
+                        labels  = label_vec)
+
+param_levels <- levels(long_df$param) 
+stopifnot(length(param_levels) == length(true_beta))
+
+med_df <- data.frame(
+  param = factor(param_levels, levels = param_levels),
+  med   = true_beta)
+```
+
+```{r}
+hist_beta_0.8=ggplot(long_df, aes(value)) +
+  geom_histogram(aes(y = after_stat(..density..)), bins=30, colour = "white", fill = "grey40") +
+  facet_wrap(~ param, scales = "free", labeller = label_parsed) +
+  geom_vline(data = med_df, aes(xintercept = med),
+             colour = "red", linewidth = 0.5, linetype="dashed") +
+  labs(x = "Sample value", y = "Density") +
+  theme_bw()
+
+print(hist_beta_0.8)
+```
+
+```{r}
+# ggsave(
+#   filename = "simulation2_200/simulation2_beta_0.8_histogram_200.pdf",
+#   plot     = hist_beta_0.8,
+#   width    = 6, height = 4, units = "in",
+#   dpi      = 300
+# )
+```
+
+```{r}
+file= "../R2_cluster_u4/result/simulation2_200/parameter_0.8/omega/test_simulation2_0.8_omega_record_200_154.csv"
+nadpt=0.8*2000
+raw_mat   <- as.matrix(fread(file, header = FALSE, data.table = FALSE))
+post_mat  <- raw_mat[ , (nadpt + 4):ncol(raw_mat), drop = FALSE]
+```
+
+```{r}
+storage.mode(post_mat) <- "double"
+
+is.numeric(post_mat)          
+sum_na <- sum(!is.finite(post_mat))
+cat("NAs introduced:", sum_na, "\n")
+post_mat=abs(post_mat)
+```
+
+```{r}
+best_interval <- find_best_interval(
+  post_mat = post_mat,
+  true_beta = true_omega,
+  min_len   = 500,
+  max_len   = Inf,
+  metric    = "RMSE"
+)
+```
+
+```{r}
+post_mat  <- post_mat[ ,best_interval$post_start:best_interval$post_end]
+long_df <- as.data.frame(post_mat) |>
+           mutate(param = paste0("p", row_number())) |>
+           pivot_longer(-param, names_to = "iter", values_to = "value")
+#long_df$value <- as.numeric(long_df$value)
+```
+
+```{r}
+label_vec <- c(expression(omega[1]),
+               expression(omega[2]), expression(omega[3]),
+               expression(omega[4]), expression(omega[5]))
+
+long_df$param <- factor(long_df$param,
+                        levels  = paste0("p", 1:5),
+                        labels  = label_vec)
+
+param_levels <- levels(long_df$param) 
+stopifnot(length(param_levels) == length(true_omega))
+
+med_df <- data.frame(
+  param = factor(param_levels, levels = param_levels),
+  med   = true_omega
+)
+```
+
+```{r}
+hist_omega_0.8=ggplot(long_df, aes(value)) +
+  geom_histogram(aes(y = after_stat(..density..)), bins = 30, colour = "white", fill = "grey40") +
+  facet_wrap(~ param, scales = "free", labeller = label_parsed) +
+  geom_vline(data = med_df, aes(xintercept = med),
+             colour = "red", linewidth = 0.5, linetype="dashed") +
+  labs(x = "Sample value", y = "Density") + 
+  theme_bw()
+
+print(hist_omega_0.8)
+```
+
+```{r}
+# ggsave(
+#   filename = "simulation2_200/simulation2_omega_0.8_histogram_200.pdf",
+#   plot     = hist_omega_0.8,
+#   width    = 6, height = 4, units = "in",
+#   dpi      = 300
+# )
+```
+
+```{r}
+q <- "0.8"
+par_file <- result_simulation2_parameter_0.8
+conf_beta_0.8  <- ci_nonzero_parallel("../R2_cluster_u4/result/simulation2_200/parameter_0.8/beta",
+                             "test_simulation2_0.8_beta_record_200", n_beta, task_id)
+conf_omega_0.8 <- ci_nonzero_parallel("../R2_cluster_u4/result/simulation2_200/parameter_0.8/omega",
+                             "test_simulation2_0.8_omega_record_200", n_omega, task_id)
+
+beta_mat  <- par_file[, beta_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+labs_beta <- c("Intercept", paste0("X[", 1:5, "]"))
+names(labs_beta) <- colnames(beta_mat)
+```
+
+```{r}
+p_beta_0.8 <- plot_coefficients(
+  beta_mat,  conf_beta_0.8,  1:6,
+#  title = expression("Boxplot for Fixed Effect coefficients " * beta),
+  q_probs      = c(0.3, 0.7),
+  var_labels     = labs_beta)
+print(p_beta_0.8)
+```
+
+```{r}
+labs_omega <- paste0("X[", 1:5, "]")
+names(labs_omega) <- colnames(omega_mat)
+```
+
+```{r}
+p_omega_0.8 <- plot_coefficients(
+  omega_mat, conf_omega_0.8, 1:5,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_probs      = c(0.2, 0.8),
+  param_type = "omega",
+  var_labels     = labs_omega)
+print(p_omega_0.8)
+```
+
+```{r}
+# ggsave(
+#   filename = "simulation2_200/simulation2_beta_0.8_boxplot_200.pdf",
+#   plot     = p_beta_0.8,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+# ggsave(
+#   filename = "simulation2_200/simulation2_omega_0.8_boxplot_200.pdf",
+#   plot     = p_omega_0.8,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+5. q=1
+```{r}
+q <- "1"
+par_file <- result_simulation2_parameter_1
+conf_beta_1  <- ci_nonzero_parallel("../R2_cluster_u4/result/simulation2_200/parameter_1/beta",
+                           "test_simulation2_1_beta_record_200", n_beta, task_id)
+conf_omega_1 <- ci_nonzero_parallel("../R2_cluster_u4/result/simulation2_200/parameter_1/omega",
+                           "test_simulation2_1_omega_record_200", n_omega, task_id)
+
+beta_mat  <- par_file[, beta_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+p_beta_1 <- plot_coefficients(
+  beta_mat,  conf_beta_1,  1:6,
+#  title = expression("Boxplot for Fixed Effect coefficients " * beta),
+  q_probs      = c(0.3, 0.7),
+  var_labels     = labs_beta)
+print(p_beta_1)
+```
+
+```{r}
+p_omega_1 <- plot_coefficients(
+  omega_mat, conf_omega_1, 1:5,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_probs      = c(0.2, 0.8),
+  param_type = "omega",
+  var_labels     = labs_omega)
+print(p_omega_1)
+```
+
+```{r}
+# ggsave(
+#   filename = "simulation2_200/simulation2_beta_1_boxplot_200.png",
+#   plot     = p_beta_1,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+
+```{r}
+# ggsave(
+#   filename = "simulation2_200/simulation2_omega_1_boxplot_200.png",
+#   plot     = p_omega_1,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+6. q=2
+```{r}
+q <- "2"
+par_file <- result_simulation2_parameter_2
+conf_beta_2  <- ci_nonzero_parallel("../R2_cluster_u4/result/simulation2_200/parameter_2/beta",
+                           "test_simulation2_2_beta_record_200", n_beta, task_id)
+conf_omega_2 <- ci_nonzero_parallel("../R2_cluster_u4/result/simulation2_200/parameter_2/omega",
+                           "test_simulation2_2_omega_record_200", n_omega, task_id)
+
+beta_mat  <- par_file[, beta_cols]
+omega_mat <- abs(par_file[, omega_cols])
+colnames(omega_mat) <- sub("\\.1$", "", colnames(omega_mat))
+```
+
+```{r}
+p_beta_2 <- plot_coefficients(
+  beta_mat,  conf_beta_2,  1:6,
+#  title = expression("Boxplot for Fixed Effect coefficients " * beta),
+  q_probs      = c(0.3, 0.7),
+  var_labels     = labs_beta)
+print(p_beta_2)
+```
+
+
+```{r}
+p_omega_2 <- plot_coefficients(
+  omega_mat, conf_omega_2, 1:5,
+  ylab = expression(hat(omega)),
+#  title = expression("Boxplot for Random Effect coefficients " * omega),
+  q_probs      = c(0.2, 0.8),
+  param_type = "omega",
+  var_labels     = labs_omega)
+print(p_omega_2)
+```
+
+```{r}
+# ggsave(
+#   filename = "simulation2_200/simulation2_beta_2_boxplot_200.png",
+#   plot     = p_beta_2,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+# ggsave(
+#   filename = "simulation2_200/simulation2_omega_2_boxplot_200.png",
+#   plot     = p_omega_2,
+#   width    = 8,
+#   height   = 5,
+#   dpi      = 300,
+#   units    = "in"
+# )
+```
+
+```{r}
+conf_list <- list(
+  conf_beta_0.8  = conf_beta_0.8,
+  conf_beta_1    = conf_beta_1,
+  conf_beta_2    = conf_beta_2,
+  conf_omega_0.8 = conf_omega_0.8,
+  conf_omega_1   = conf_omega_1,
+  conf_omega_2   = conf_omega_2
+)
+
+conf_df <- conf_list |>
+  tibble::enframe(name = "series", value = "value") |>   
+  unnest_longer(value, indices_include = TRUE) |>        
+  rename(index = value_id, count = value)
+
+print(conf_df, n = 20)
+```
+
+```{r}
+# write.csv(conf_df,
+#           file      = "simulation2_200/confidence_counts.csv",
+#           row.names = FALSE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
