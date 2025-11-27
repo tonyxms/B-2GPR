@@ -32,5 +32,8 @@ predict_c.R: Use an alternative trained Bayesian bridge model to generate predic
 
 second_order.R: Construct the second-order polynomial basis.
 
-###
+plot_coefficients.R: Generate box plots of the regression parameters with color shading.
 
+find_best_interval.R: Find the best interval of MCMC posterior samples based on a chosen performance metric.
+
+###
